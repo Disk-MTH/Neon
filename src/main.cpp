@@ -8,13 +8,14 @@
 #define LED_TYPE (NEO_GRB + NEO_KHZ800)
 #define BRIGHTNESS 100
 #define STRIPS_PER_SIDE 7
-#define STRIP_1 10
-#define STRIP_2 10
-#define STRIP_3 10
-#define STRIP_4 10
-#define STRIP_5 10
-#define STRIP_6 10
-#define STRIP_7 10
+#define STRIP_1 70
+#define STRIP_2 62
+#define STRIP_3 44
+#define STRIP_4 64
+#define STRIP_5 28
+#define STRIP_6 52
+#define STRIP_7 50
+
 
 Adafruit_NeoPixel left_strips[STRIPS_PER_SIDE] = {
     Adafruit_NeoPixel(STRIP_1, 4, LED_TYPE),
