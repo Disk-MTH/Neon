@@ -1,9 +1,4 @@
-#include <WiFi.h>
-#include <ArduinoOTA.h>
 #include <Adafruit_NeoPixel.h>
-
-#define WIFI_SSID "NeonOTAWifi"
-#define WIFI_PASSWORD "un_mot_de_passe_solide"
 
 #define LED_TYPE (NEO_GRB + NEO_KHZ800)
 #define BRIGHTNESS 100
@@ -37,8 +32,6 @@ Adafruit_NeoPixel right_strips[STRIPS_PER_SIDE] = {
     Adafruit_NeoPixel(STRIP_7, 32, LED_TYPE)
 };
 
-bool ota_in_progress = false;
-
 void setAllStripsColor(const uint32_t color) {
     for (uint8_t i = 0; i < STRIPS_PER_SIDE; i++) {
         left_strips[i].fill(color);
@@ -52,26 +45,6 @@ void setAllStripsColor(const uint32_t color) {
 void setup() {
     Serial.begin(115200);
     Serial.println("\n--- System Boot Log ---");
-
-    WiFi.softAP(WIFI_SSID, WIFI_PASSWORD);
-    Serial.printf("AP Started. IP: %s\n", WiFi.softAPIP().toString().c_str());
-
-    ArduinoOTA.setHostname("neon");
-    ArduinoOTA
-            .onStart([] {
-                ota_in_progress = true;
-                Serial.println("OTA Update Started... Animations paused");
-            })
-            .onEnd([] {
-                ota_in_progress = false;
-                Serial.println("OTA Update Finished. Rebooting...");
-            })
-            .onError([](const ota_error_t error) {
-                ota_in_progress = false;
-                Serial.printf("OTA Error: %d\n", error);
-            });
-    ArduinoOTA.begin();
-    Serial.println("OTA ready");
 
     for (uint8_t i = 0; i < STRIPS_PER_SIDE; i++) {
         left_strips[i].begin();
@@ -88,9 +61,6 @@ void setup() {
 }
 
 void loop() {
-    ArduinoOTA.handle();
-    if (ota_in_progress) return;
-
     static unsigned long lastChangeTime = 0;
     static int colorState = 0;
 
