@@ -1,16 +1,25 @@
 #include <Adafruit_NeoPixel.h>
 
-#define LED_TYPE (NEO_GRB + NEO_KHZ800)
-#define BRIGHTNESS 100
-#define STRIPS_COUNT 7
-#define STRIP_1 70
-#define STRIP_2 62
-#define STRIP_3 46
-#define STRIP_4 64
-#define STRIP_5 28
-#define STRIP_6 52
-#define STRIP_7 50
+// --- Strips configuration ---
+#define LED_TYPE      (NEO_GRB + NEO_KHZ800)
+#define STRIPS_COUNT  7
+#define STRIP_1       70
+#define STRIP_2       62
+#define STRIP_3       46
+#define STRIP_4       64
+#define STRIP_5       28
+#define STRIP_6       52
+#define STRIP_7       50
 
+// --- Fire effect configuration ---
+#define RED           0xFF0000
+#define VIOLET        0xFF0000
+#define FLAME_SIZE    15
+#define COOLING       50
+#define SPARKING      100
+#define ANIMATION_DELAY   50
+
+// --- Strips configuration ---
 Adafruit_NeoPixel left_strips[STRIPS_COUNT] = {
     Adafruit_NeoPixel(STRIP_1, 16, LED_TYPE),
     Adafruit_NeoPixel(STRIP_2, 17, LED_TYPE),
@@ -31,75 +40,99 @@ Adafruit_NeoPixel right_strips[STRIPS_COUNT] = {
     Adafruit_NeoPixel(STRIP_7, 32, LED_TYPE)
 };
 
-void setAllStripsColor(const uint32_t color) {
-    for (uint8_t i = 0; i < STRIPS_COUNT; i++) {
-        left_strips[i].fill(color);
-        left_strips[i].show();
+// --- Global variables for fire effect ---
+uint8_t MASTER_BRIGHTNESS = 150;
+uint8_t MIN_FLAME_BRIGHTNESS = MASTER_BRIGHTNESS * 0.6;
+byte heat_left[STRIPS_COUNT][FLAME_SIZE];
+byte heat_right[STRIPS_COUNT][FLAME_SIZE];
+uint32_t flame_gradient[FLAME_SIZE];
 
-        right_strips[i].fill(color);
-        right_strips[i].show();
+// --- Utility functions ---
+uint8_t qadd8(const uint8_t i, const uint8_t j) {
+    unsigned int t = i + j;
+    if (t > 255) t = 255;
+    return t;
+}
+
+uint8_t qsub8(const uint8_t i, const uint8_t j) {
+    int t = i - j;
+    if (t < 0) t = 0;
+    return t;
+}
+
+uint8_t random8(const uint8_t min_val, const uint8_t max_val) {
+    return min_val + random(max_val - min_val);
+}
+
+uint8_t random8() {
+    return random(256);
+}
+
+void animateFire(Adafruit_NeoPixel &strip, byte heat[FLAME_SIZE]) {
+    int numPixels = strip.numPixels();
+
+    for (int i = 0; i < FLAME_SIZE; i++) { heat[i] = qsub8(heat[i], random8(0, ((COOLING * 10) / FLAME_SIZE) + 2)); }
+    for (int k = FLAME_SIZE - 1; k >= 2; k--) { heat[k] = (heat[k - 1] + heat[k - 2] + heat[k - 2]) / 3; }
+    if (random8() < SPARKING) {
+        int y = random8(0, 7);
+        heat[y] = qadd8(heat[y], random8(160, 255));
+    }
+
+    for (int j = 0; j < FLAME_SIZE; j++) {
+        const uint32_t base_color = flame_gradient[j];
+        const byte pixel_brightness = heat[j] == 0 ? 0 : map(heat[j], 0, 255, MIN_FLAME_BRIGHTNESS, 255);
+        
+        strip.setPixelColor(
+            numPixels - FLAME_SIZE + j,
+            (base_color >> 16 & 0xFF) * pixel_brightness / 255,
+            (base_color >> 8 & 0xFF) * pixel_brightness / 255,
+            (base_color & 0xFF) * pixel_brightness / 255
+        );
     }
 }
 
+// --- Lifecycle functions ---
 void setup() {
     Serial.begin(115200);
-    Serial.println("\n--- System Boot ---");
+    randomSeed(analogRead(0));
+    
+    for (int i = 0; i < FLAME_SIZE; i++) {
+        flame_gradient[i] = Adafruit_NeoPixel::Color(
+            map(i, 0, FLAME_SIZE - 1, RED >> 16 & 0xFF, VIOLET >> 16 & 0xFF),
+            map(i, 0, FLAME_SIZE - 1, RED >> 8 & 0xFF, VIOLET >> 8 & 0xFF),
+            map(i, 0, FLAME_SIZE - 1, RED & 0xFF, VIOLET & 0xFF)
+        );
+    }
 
     for (uint8_t i = 0; i < STRIPS_COUNT; i++) {
         left_strips[i].begin();
-        left_strips[i].setBrightness(BRIGHTNESS);
-        left_strips[i].show();
+        left_strips[i].fill(RED);
 
         right_strips[i].begin();
-        right_strips[i].setBrightness(BRIGHTNESS);
-        right_strips[i].show();
+        right_strips[i].fill(RED);
     }
-
-    Serial.println("Startup complete");
 }
 
 void loop() {
-    for (uint8_t i = 0; i < STRIPS_COUNT; i++) {
-        left_strips[i].fill(Adafruit_NeoPixel::Color(255, 0, 0));
-        left_strips[i].show();
+    //MASTER_BRIGHTNESS = map(analogRead(A0), 0, 1023, 0, 255); //TODO later
 
-        right_strips[i].fill(Adafruit_NeoPixel::Color(255, 0, 0));
-        right_strips[i].show();
+    for (uint8_t i = 0; i < STRIPS_COUNT; i++) {
+        left_strips[i].setBrightness(MASTER_BRIGHTNESS);
         
-        delay(500);
+        right_strips[i].setBrightness(MASTER_BRIGHTNESS);
+    }
+
+    for (const uint8_t i: {1, 3, 5, 6}) {
+        animateFire(left_strips[i], heat_left[i]);
+        
+        animateFire(right_strips[i], heat_right[i]);
     }
 
     for (uint8_t i = 0; i < STRIPS_COUNT; i++) {
-        left_strips[i].clear();
         left_strips[i].show();
-
-        right_strips[i].clear();
+        
         right_strips[i].show();
     }
 
-    delay(1000);
-
-    /*static unsigned long lastChangeTime = 0;
-    static int colorState = 0;
-
-    if (millis() - lastChangeTime > 1000) {
-        lastChangeTime = millis();
-        switch (colorState) {
-            case 0:
-                Serial.println("Red");
-                setAllStripsColor(Adafruit_NeoPixel::Color(255, 0, 0));
-                break;
-            case 1:
-                Serial.println("Green");
-                setAllStripsColor(Adafruit_NeoPixel::Color(0, 255, 0));
-                break;
-            case 2:
-                Serial.println("Blue");
-                setAllStripsColor(Adafruit_NeoPixel::Color(0, 0, 255));
-                break;
-            default:
-                break;
-        }
-        colorState = (colorState + 1) % 3;
-    }*/
+    delay(ANIMATION_DELAY);
 }
